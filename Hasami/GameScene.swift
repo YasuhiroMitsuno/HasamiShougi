@@ -12,7 +12,9 @@ let SCALE: CGFloat = 0.7
 let align: CGFloat = 62
 
 protocol PieceTouchDelegate {
-    func touchedPiece(piece:PieceNode)
+    func pieceTouchesBegan(piece:PieceNode)
+    func pieceTouchesMoved(piece:PieceNode, touches: NSSet, withEvent event: UIEvent)
+    func pieceTouchesEnded(piece:PieceNode)
 }
 
 class PieceNode: SKSpriteNode {
@@ -21,7 +23,8 @@ class PieceNode: SKSpriteNode {
         case to = "koma_to_r.png"
         case hoh = "koma_ho_hover.png"
         case toh = "koma_to_hover_r.png"
-        case masu = "masu_hover.png"
+        case masu = "masu.png"
+        case masuh = "masu_hover.png"
     }
     var point : Point?
     var piecetype : Type? {
@@ -33,6 +36,7 @@ class PieceNode: SKSpriteNode {
     
     override init(texture: SKTexture!, color: UIColor!, size: CGSize)
     {
+        _willMove = false
         super.init(texture: texture, color: color, size: size)
     }
     
@@ -45,6 +49,7 @@ class PieceNode: SKSpriteNode {
         self.piecetype = type
     }
     required init?(coder aDecoder: NSCoder) {
+        _willMove = false
         super.init(coder: aDecoder)
     }
     
@@ -55,6 +60,7 @@ class PieceNode: SKSpriteNode {
         case .to:
             piecetype = .toh
         case .masu:
+            piecetype = .masuh
             self.hidden = false
         default:
             break
@@ -67,7 +73,8 @@ class PieceNode: SKSpriteNode {
             piecetype = .ho
         case .toh:
             piecetype = .to
-        case .masu:
+        case .masuh:
+            piecetype = .masu
             self.hidden = true
         default:
             break
@@ -75,24 +82,35 @@ class PieceNode: SKSpriteNode {
     }
     
     var _position : CGPoint?
+    var _willMove : Bool
     override func touchesBegan(touches: NSSet, withEvent event: UIEvent) {
         for touch: AnyObject in touches {
             _position = self.position
+            _willMove = false
         }
-        delegate?.touchedPiece(self)
+        delegate?.pieceTouchesBegan(self)
     }
     override func touchesMoved(touches: NSSet, withEvent event: UIEvent) {
         if self.piecetype == .masu {
             return
         }
-        for touch: AnyObject in touches {
-            let location = touch.locationInNode(self.parent)
-            self.position = location
+        if !_willMove {
+            for touch: AnyObject in touches {
+                let location = touch.locationInNode(self.parent)
+                let x = location.x - _position!.x
+                let y = location.y - _position!.y
+                if sqrt(x*x + y*y) > 20 {
+                    _willMove = true
+                }
+            }
+        } else {
+            delegate?.pieceTouchesMoved(self, touches: touches, withEvent: event)
         }
     }
     override func touchesEnded(touches: NSSet, withEvent event: UIEvent) {
         for touch: AnyObject in touches {
-            self.position = _position!
+            delegate?.pieceTouchesEnded(self)
+
             if touch.tapCount == 0 {
                 return
             }
@@ -104,7 +122,9 @@ class GameScene: SKScene {
     var shougiContnroller: ShougiController
     var masuNodeArray: [[PieceNode?]]
     var boardNode: SKSpriteNode
-    var pieceNodeArray: [PieceNode?]
+    var hoNodeArray: [PieceNode?]
+    var toNodeArray: [PieceNode?]
+    var selectedPieceNode: PieceNode?
     
     required init?(coder aDecoder: NSCoder) {
         shougiContnroller = ShougiController()
@@ -112,7 +132,8 @@ class GameScene: SKScene {
         boardNode.xScale = SCALE
         boardNode.yScale = SCALE
         masuNodeArray = Array(count: 9, repeatedValue: Array(count: 9, repeatedValue: nil))
-        pieceNodeArray = Array()
+        hoNodeArray = Array()
+        toNodeArray = Array()
         super.init(coder: aDecoder)
     }
     override func didMoveToView(view: SKView) {
@@ -125,6 +146,8 @@ class GameScene: SKScene {
                 newPiece.position = CGPoint(x: CGFloat(j-4)*align, y: CGFloat(4-i)*align)
                 newPiece.userInteractionEnabled = true
                 newPiece.hidden = true
+                newPiece.point = Point(y: i, x: j)
+                newPiece.delegate = self
                 masuNodeArray[i][j] = newPiece
                 boardNode.addChild(newPiece)
             }
@@ -135,57 +158,118 @@ class GameScene: SKScene {
             newPiece.userInteractionEnabled = true
             newPiece.delegate = self
             newPiece.point = Point(y: 8, x: i)
-            pieceNodeArray.append(newPiece)
+            hoNodeArray.append(newPiece)
             boardNode.addChild(newPiece)
         }
         for i in 0...8 {
             var newPiece : PieceNode = PieceNode(type: .to)
             newPiece.position = CGPoint(x: CGFloat(i-4)*align, y: CGFloat(4)*align)
             newPiece.userInteractionEnabled = true
-            pieceNodeArray.append(newPiece)
+            newPiece.delegate = self
+            newPiece.point = Point(y: 0, x: i)
+            toNodeArray.append(newPiece)
             boardNode.addChild(newPiece)
         }
     }
-    /*
-    override func touchesBegan(touches: NSSet, withEvent event: UIEvent) {
-        /* Called when a touch begins */
-        
-        for touch: AnyObject in touches {
-            let location = touch.locationInNode(self)
-            
-            let sprite = SKSpriteNode(imageNamed:"Spaceship")
-            
-            sprite.xScale = 0.5
-            sprite.yScale = 0.5
-            sprite.position = location
-            
-            let action = SKAction.rotateByAngle(CGFloat(M_PI), duration:1)
-            
-            sprite.runAction(SKAction.repeatActionForever(action))
-            
-//            self.addChild(sprite)
-        }
-    }
-    */
+
     func locationToPoint(point:CGPoint) -> Point {
         return Point(y: 10, x: 10)
     }
    
     override func update(currentTime: CFTimeInterval) {
-        /* Called before each frame is rendered */
+        for cpiece in boardNode.children {
+            cpiece.unhover()
+        }
+        for point in shougiContnroller.movablePoints {
+            let masuNode = masuNodeArray[point.y][point.x]!
+                masuNode.hover()
+        }
+        if let piece = shougiContnroller.selectedPiece() {
+            switch piece.type {
+            case .Ho:
+                hoNodeArray[piece.id]?.hover()
+                break
+            case .To:
+                toNodeArray[piece.id]?.hover()
+                break
+            default:
+                break
+            }
+        }
     }
 }
 
 extension GameScene:PieceTouchDelegate {
-    func touchedPiece(piece: PieceNode) {
-        if shougiContnroller.select(piece.point) {
-            for cpiece in boardNode.children {
-                cpiece.unhover()
+    func pieceTouchesBegan(piece: PieceNode) {
+        if piece.piecetype == .masuh {
+            movePiece(piece, duration: 0.2)
+            return
+        }
+        if let sPiece = shougiContnroller.selectedPiece() {
+            if pieceNode(sPiece) == piece {
+                shougiContnroller.unselect()
             }
-            piece.hover()
-            for point in shougiContnroller.movablePoints {
-                masuNodeArray[point.y][point.x]!.hover()
+        } else {
+            if shougiContnroller.select(piece.point) {
+                selectedPieceNode = piece
+                return
             }
+        }
+        shougiContnroller.unselect()
+    }
+    func pieceTouchesEnded(piece: PieceNode) {
+        for point in shougiContnroller.movablePoints {
+            let masuNode = masuNodeArray[point.y][point.x]!
+            
+            if masuNode.containsPoint(selectedPieceNode!.position) {
+                movePiece(masuNode, duration: 0.0)
+                return
+            }
+        }
+        piece.position = piece._position!
+    }
+    func pieceTouchesMoved(piece: PieceNode, touches: NSSet, withEvent event: UIEvent) {
+        if !shougiContnroller.select(piece.point) {
+            return
+        }
+        for touch: AnyObject in touches {
+            let location = touch.locationInNode(piece.parent)
+            piece.position = CGPointMake(location.x, location.y + 62)
+        }
+    }
+    func movePiece(piece: PieceNode, duration: NSTimeInterval) -> Bool {
+        if shougiContnroller.movePiece(piece.point!) {
+            selectedPieceNode?.point = piece.point
+            let action = SKAction.moveTo(piece.position, duration: duration)
+            selectedPieceNode?.runAction(action, completion:{
+                self.updatePiece()
+            })
+            return true
+        }
+        return false
+    }
+    func updatePiece() {
+        for piece in hoNodeArray {
+            if shougiContnroller.piece(piece!.point!).type == .Masu {
+                let moveAction = SKAction.moveBy(CGVector(dx: 0, dy: 1000), duration: 0.3)
+                piece?.runAction(moveAction)
+            }
+        }
+        for piece in toNodeArray {
+            if shougiContnroller.piece(piece!.point!).type == .Masu {
+                let moveAction = SKAction.moveBy(CGVector(dx: 0, dy: -1000), duration: 0.3)
+                piece?.runAction(moveAction)
+            }
+        }
+    }
+    func pieceNode(piece: Piece) -> PieceNode? {
+        switch piece.type {
+        case .Ho:
+            return hoNodeArray[piece.id]
+        case .To:
+            return toNodeArray[piece.id]
+        default:
+            return nil
         }
     }
 }

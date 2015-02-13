@@ -11,12 +11,12 @@ import Foundation
 enum Player {
     case Own
     case Enemy
-    func piece() -> Piece {
+    func pieceType() -> PieceType {
         switch self {
         case .Own:
             return .Ho
         case .Enemy:
-            return .Hu
+            return .To
         }
     }
     func enemy() -> Player {

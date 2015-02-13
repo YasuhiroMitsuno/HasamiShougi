@@ -37,13 +37,17 @@ enum Direction:Int {
         case .Left:
             return Point(y: 0, x: -1)
         case .Right:
-            return Point(y: 0, x: -1)
+            return Point(y: 0, x: 1)
         }
     }
 }
+enum PieceType {
+    case Ho, To, Masu
+}
 
-enum Piece: Int {
-    case Ho, Hu, Masu
+struct Piece {
+    var type: PieceType
+    var id: Int
 }
 
 class BoardData {
@@ -51,10 +55,12 @@ class BoardData {
     var turn : Player
     var score: [Player:Int]
     init() {
-        bin = Array(count: 9, repeatedValue: Array(count: 9, repeatedValue: Piece.Masu))
+        bin = Array(count: 9, repeatedValue: Array(count: 9, repeatedValue: Piece(type: .Masu, id: 0)))
         for i in 0...8 {
-            bin[0][i] = .Hu
-            bin[8][i] = .Ho
+            bin[0][i].type = .To
+            bin[8][i].type = .Ho
+            bin[0][i].id = i
+            bin[8][i].id = i
         }
         turn = .Own
         score = Dictionary(dictionaryLiteral: (.Own, 0), (.Enemy, 0))
@@ -68,13 +74,12 @@ class BoardData {
 }
 
 protocol ShougiAlgorithmProtocol {
-    func hasami(Point) -> Int
+    func hasami(Point) -> [Point]
 }
 
 class ShougiModel {
     private var datas: [BoardData]
     private var currentData: BoardData
-    private var selectedPoint: Point?
 
     init() {
         datas = Array()
@@ -98,10 +103,12 @@ class ShougiModel {
         datas.removeLast()
     }
     // コマを動かし，ポイントを追加
-    func move(from: Point, to: Point) -> Int {
+    func move(from: Point, to: Point) -> [Point] {
         currentData.bin[to.y][to.x] = currentData.bin[from.y][from.x]
-        currentData.bin[from.y][from.x] = .Masu
-        return hasami(to)
+        currentData.bin[from.y][from.x] = Piece(type: .Masu, id: 0)
+        let points = hasami(to)
+        delete(points)
+        return points
     }
     
     func score(player: Player) -> Int {
@@ -114,104 +121,37 @@ class ShougiModel {
 }
 
 extension ShougiModel : ShougiAlgorithmProtocol {
-    func hasami(p: Point) -> Int {
-        return 0
-/*
-        // ハサミの実装
-        var count: Int = 0
-        var ok : Bool = false
-        for var i = y+1;i<9;i++ {
-            if currentData.bin[i][x] == enemy() {
-                ok = true
-            } else {
-                if currentData.bin[i][x] == currentData.turn {
-                    if (ok) {
-                        count += delete(y, fromX: x, toY: i, toX: x)
+    func hasami(p: Point) -> [Point] {
+        var willDeletePoints : [Point] = Array()
+        for direction: Direction in [.Up, .Down, .Left, .Right] {
+            var tmpPoints: [Point] = Array()
+            var ok = false
+            for var np:Point=p+direction.toPoint();checkPoint(np);np=np+direction.toPoint() {
+                if piece(np).type != .Masu {
+                    if piece(np).type != piece(p).type {
+                        ok = true
+                        tmpPoints.append(np)
                     } else {
+                        if (ok) {
+                            for point in tmpPoints {
+                                willDeletePoints.append(point)
+                            }
+                        }
                         break
                     }
+                } else {
+                    break
                 }
-                break
             }
         }
-        ok = false
-        for var i = y-1;i>=0;i-- {
-            if currentData.bin[i][x] == enemy() {
-                ok = true
-            } else {
-                if currentData.bin[i][x] == currentData.turn {
-                    if (ok) {
-                        count += delete(i, fromX: x, toY: y, toX: x)
-                    } else {
-                        break
-                    }
-                }
-                break
-            }
-        }
-        ok = false
-        for var i = x+1;i<9;i++ {
-            if currentData.bin[y][i] == enemy() {
-                ok = true
-            } else {
-                if currentData.bin[y][i] == currentData.turn {
-                    if (ok) {
-                        count += delete(y, fromX: x, toY: y, toX: i)
-                    } else {
-                        break
-                    }
-                }
-                break
-            }
-        }
-        ok = false
-        for var i = x-1;i>=0;i-- {
-            if currentData.bin[y][i] == enemy() {
-                ok = true
-            } else {
-                if currentData.bin[y][i] == currentData.turn {
-                    if (ok) {
-                        count += delete(y, fromX: i, toY: y, toX: x)
-                    } else {
-                        break
-                    }
-                }
-                break
-            }
-        }
-        return count
-*/
+        return willDeletePoints
     }
     
-    func delete(fromY: Int, fromX:Int, toY: Int, toX: Int) -> Int {
-        /*
-        var count: Int = 0
-        /* 冗長なので直す */
-        if fromY < toY {
-            for var i=fromY+1;i<toY;i++ {
-                currentData.bin[i][fromX] = 0
-                count++;
-            }
-        } else if toY < fromY {
-            for var i=toY+1;i<fromY;i++ {
-                currentData.bin[i][fromX] = 0
-                count++;
-            }
-        } else if fromX < toX {
-            for var i=fromX+1;i<toX;i++ {
-                currentData.bin[fromY][i] = 0
-                count++;
-            }
-        } else if toX < fromX {
-            for var i=toX+1;i<fromX;i++ {
-                currentData.bin[fromY][i] = 0
-                count++;
-            }
+    func delete(points: [Point]) {
+        for point in points {
+            currentData.bin[point.y][point.x].type = .Masu
+            currentData.bin[point.y][point.x].id = 0
         }
-        
-        return count
-*/
-        return 0
     }
 
 }

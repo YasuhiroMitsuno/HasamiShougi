@@ -21,10 +21,24 @@ class ShougiController {
         currentPlayer = .Own
     }
     
+    func piece(point: Point) -> Piece {
+        return model.piece(point)
+    }
+    
+    func selectedPiece() -> Piece? {
+        if var point = selectedPoint {
+            return model.piece(point)
+        }
+        return nil
+    }
+    
     func select(point: Point?) -> Bool {
         if var _point = point {
+            if model.piece(_point).type == .Masu {
+                return false
+            }
             // 選択したピースの所有権が選択者か判定
-            if model.piece(_point) != currentPlayer.piece() {
+            if model.piece(_point).type != currentPlayer.pieceType() {
                 return false
             }
 
@@ -33,7 +47,7 @@ class ShougiController {
 
             for direction: Direction in [.Up, .Down, .Left, .Right] {
                 for var p:Point=selectedPoint!+direction.toPoint();model.checkPoint(p);p=p+direction.toPoint() {
-                    if model.piece(p) != .Masu {
+                    if model.piece(p).type != .Masu {
                         break
                     }
                     movablePoints.append(p)
@@ -62,14 +76,15 @@ class ShougiController {
         if !canMove(p) {
             return false
         }
-        
+
         // 動かす前の状態を保存
         model.pushState()
         // コマの移動
-        let newScore = model.move(selectedPoint!, to: p)
+        let points =  model.move(selectedPoint!, to: p)
         // ターン交代
         currentPlayer = currentPlayer.enemy()
         
+        unselect()
         return true
     }
 
