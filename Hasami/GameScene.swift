@@ -23,13 +23,40 @@ class PieceNode: SKSpriteNode {
         case to = "koma_to_r.png"
         case hoh = "koma_ho_hover.png"
         case toh = "koma_to_hover_r.png"
+        case hor = "koma_ho_r.png"
+        case tor = "koma_to.png"
         case masu = "masu.png"
         case masuh = "masu_hover.png"
     }
     var point : Point?
+    var _position : CGPoint?
+    var _willMove : Bool
     var piecetype : Type? {
         didSet {
             self.texture = SKTexture(imageNamed: piecetype!.rawValue)
+        }
+    }
+    var excluded: Bool {
+        didSet {
+            if excluded {
+                switch piecetype! {
+                case .ho:
+                    piecetype = .hor
+                case .to:
+                    piecetype = .tor
+                default:
+                    break
+                }
+            } else {
+                switch piecetype! {
+                case .hor:
+                    piecetype = .ho
+                case .tor:
+                    piecetype = .to
+                default:
+                    break
+                }
+            }
         }
     }
     var delegate : PieceTouchDelegate?
@@ -37,6 +64,7 @@ class PieceNode: SKSpriteNode {
     override init(texture: SKTexture!, color: UIColor!, size: CGSize)
     {
         _willMove = false
+        excluded = false
         super.init(texture: texture, color: color, size: size)
     }
     
@@ -50,6 +78,7 @@ class PieceNode: SKSpriteNode {
     }
     required init?(coder aDecoder: NSCoder) {
         _willMove = false
+        excluded = false
         super.init(coder: aDecoder)
     }
     
@@ -81,8 +110,6 @@ class PieceNode: SKSpriteNode {
         }
     }
     
-    var _position : CGPoint?
-    var _willMove : Bool
     override func touchesBegan(touches: NSSet, withEvent event: UIEvent) {
         for touch: AnyObject in touches {
             _position = self.position
@@ -144,10 +171,11 @@ class GameScene: SKScene {
     var shougiContnroller: ShougiController
     var masuNodeArray: [[PieceNode?]]
     var boardNode: SKSpriteNode
-    var hoNodeArray: [PieceNode?]
-    var toNodeArray: [PieceNode?]
+    var pieceNodeArray: [[PieceNode?]]
     var selectedPieceNode: PieceNode?
     var mattaLabel: SKButtonNode
+    var actionCount: Int
+    var excludedPieces: [Int]
     
     required init?(coder aDecoder: NSCoder) {
         shougiContnroller = ShougiController()
@@ -156,9 +184,11 @@ class GameScene: SKScene {
         boardNode.yScale = SCALE
         masuNodeArray = Array(count: 9, repeatedValue: Array(count: 9, repeatedValue: nil))
         mattaLabel = SKButtonNode(fontNamed:"Chalkduster")
-        hoNodeArray = Array()
-        toNodeArray = Array()
+        pieceNodeArray = Array(count: 2, repeatedValue: Array())
+        excludedPieces = Array(count: 2, repeatedValue: 0)
         isRunningAction = false
+        isThread = false
+        actionCount = 0
         srandomdev()
         super.init(coder: aDecoder)
     }
@@ -169,7 +199,7 @@ class GameScene: SKScene {
         
         mattaLabel.text = "matta!";
         mattaLabel.fontSize = 50;
-        mattaLabel.position = CGPoint(x:400, y:100);
+        mattaLabel.position = CGPoint(x:400, y:50);
         mattaLabel.delegate = self
         self.addChild(mattaLabel)
 
@@ -193,7 +223,7 @@ class GameScene: SKScene {
             newPiece.delegate = self
             newPiece.point = Point(y: 8, x: i)
             newPiece.zPosition = 2
-            hoNodeArray.append(newPiece)
+            pieceNodeArray[0].append(newPiece)
             boardNode.addChild(newPiece)
         }
         for i in 0...8 {
@@ -203,7 +233,7 @@ class GameScene: SKScene {
             newPiece.delegate = self
             newPiece.point = Point(y: 0, x: i)
             newPiece.zPosition = 2
-            toNodeArray.append(newPiece)
+            pieceNodeArray[1].append(newPiece)
             boardNode.addChild(newPiece)
         }
     }
@@ -213,7 +243,11 @@ class GameScene: SKScene {
     }
    
     var isRunningAction: Bool
+    var isThread: Bool
     override func update(currentTime: CFTimeInterval) {
+        if isThread {
+            return
+        }
         for cpiece in boardNode.children {
             cpiece.unhover()
         }
@@ -224,42 +258,37 @@ class GameScene: SKScene {
         }
 
         if let piece = shougiContnroller.selectedPiece() {
-            switch piece.type {
-            case .Ho:
-                hoNodeArray[piece.id]?.hover()
-                break
-            case .To:
-                toNodeArray[piece.id]?.hover()
-                break
-            default:
-                break
+            if piece.type != .Masu {
+                pieceNodeArray[piece.type.rawValue][piece.id]?.hover()
             }
         }
 
-        if shougiContnroller.currentPlayer == .Enemy && !isRunningAction {
-            var r = random()%9
-            pieceTouchesBegan(toNodeArray[r]!)
-            var c = shougiContnroller.movablePoints.count
-            if c != 0 {
-                var p = shougiContnroller.movablePoints[random()%c]
-                movePiece(masuNodeArray[p.y][p.x]!, duration: 0.1)
-            }
-
+        if shougiContnroller.currentPlayer() == .Enemy && !isRunningAction {
+            isThread = true
+            let backgroundQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0)
+            dispatch_async(backgroundQueue, {
+                self.shougiContnroller.algorithm()
+                dispatch_async(dispatch_get_main_queue()) {
+                    self.updatePiece(0.2)
+                    self.isThread = false
+                }
+            })
         }
-        /*
+        
+/*
         if shougiContnroller.currentPlayer == .Own && !isRunningAction {
             var r = random()%9
-            pieceTouchesBegan(hoNodeArray[r]!)
+            pieceTouchesBegan(pieceNodeArray[0][r]!)
             var c = shougiContnroller.movablePoints.count
             if c != 0 {
                 var p = shougiContnroller.movablePoints[random()%c]
-                movePiece(masuNodeArray[p.y][p.x]!, duration: 0.1)
+                movePiece(masuNodeArray[p.y][p.x]!, duration: 0.2)
             }
             
         }
 */
         if let winner = shougiContnroller.winner() {
-            NSLog("\(winner)")
+     //       NSLog("\(winner)")
         }
     }
 }
@@ -308,7 +337,7 @@ extension GameScene:PieceTouchDelegate {
     }
     func movePiece(piece: PieceNode, duration: NSTimeInterval) -> Bool {
         if shougiContnroller.movePiece(piece.point!) {
-            selectedPieceNode?.point = piece.point
+//            selectedPieceNode?.point = piece.point
             updatePiece(duration)
 /*
             let moveaction = SKAction.moveTo(piece.position, duration: duration)
@@ -323,64 +352,90 @@ extension GameScene:PieceTouchDelegate {
         }
         return false
     }
+    
+    func appendAction() {
+        isRunningAction = true
+        actionCount++
+    }
+    func compeleAction() {
+        if --actionCount == 0 {
+            isRunningAction = false
+        }
+    }
+    
+    func excludePiece(piece: PieceNode, duration: NSTimeInterval) {
+        if piece.piecetype == .ho {
+            let moveAction = SKAction.moveTo(CGPointMake(-250 + CGFloat(excludedPieces[0] * 62), 360), duration: 0.2)
+            let action = SKAction.sequence([SKAction.waitForDuration(duration), moveAction])
+            appendAction()
+            piece.runAction(action, completion: {
+                self.compeleAction()
+                piece.excluded = true
+            })
+            excludedPieces[0]++
+
+        }
+        if piece.piecetype == .to {
+            let moveAction = SKAction.moveTo(CGPointMake(250 + CGFloat(excludedPieces[1] * -62), -360), duration: 0.2)
+            let action = SKAction.sequence([SKAction.waitForDuration(duration), moveAction])
+            appendAction()
+            piece.runAction(action, completion: {
+                self.compeleAction()
+                piece.excluded = true
+            })
+            excludedPieces[1]++
+
+        }
+        piece.point = Point(y: -1, x: -1)
+        
+    }
     func updatePiece(duration: NSTimeInterval) {
         for T in masuNodeArray {
             for masuNode in T {
                 let piece = shougiContnroller.piece(masuNode!.point!)
-                switch piece.type {
-                case .Ho:
-                    let moveAction = SKAction.moveTo(masuNode!.position, duration: duration)
-                    isRunningAction = true
-                    hoNodeArray[piece.id]?.point = masuNode?.point
-                    hoNodeArray[piece.id]!.runAction(moveAction, completion: {
-                        self.isRunningAction = false
+                if piece.type == .Masu {
+                    continue
+                }
+                if pieceNodeArray[piece.type.rawValue][piece.id]!.point! == masuNode!.point! {
+                    continue
+                }
+                let moveAction = SKAction.moveTo(masuNode!.position, duration: duration)
+                let action = SKAction.sequence([moveAction, SKAction.waitForDuration(0.0)])
+                appendAction()
+                pieceNodeArray[piece.type.rawValue][piece.id]?.point = masuNode?.point
+                let pNode = pieceNodeArray[piece.type.rawValue][piece.id]!
+                if pNode.excluded {
+                    switch pNode.piecetype! {
+                    case .hor:
+                        excludedPieces[0]--
+                        break
+                    case .tor:
+                        excludedPieces[1]--
+                        break
+                    default:
+                        break
+                    }
+                }
+                pNode.excluded = false
+                pieceNodeArray[piece.type.rawValue][piece.id]!.runAction(action, completion: {
+                    self.compeleAction()
+                })
+            }
+        }
 
-                    })
-                    break
-                case .To:
-                    let moveAction = SKAction.moveTo(masuNode!.position, duration: duration)
-                    isRunningAction = true
-                    toNodeArray[piece.id]?.point = masuNode?.point
-                    toNodeArray[piece.id]!.runAction(moveAction, completion: {
-                        self.isRunningAction = false
-
-                    })
-                    break
-                default:
-                    break
+        for T in pieceNodeArray {
+            for piece in T {
+                if !piece!.excluded && shougiContnroller.piece(piece!.point!).type == PieceType.Masu {
+                    excludePiece(piece!, duration: duration)
                 }
             }
         }
-        /*
-        for piece in hoNodeArray {
-            if shougiContnroller.piece(piece!.point!).type == .Masu {
-                let moveAction = SKAction.moveBy(CGVector(dx: 0, dy: 1000), duration: 0.0)
-  //              isRunningAction = true
-                piece?.runAction(moveAction, completion: {
-      //              self.isRunningAction = false
-                })
-            }
-        }
-        for piece in toNodeArray {
-            if shougiContnroller.piece(piece!.point!).type == .Masu {
-                let moveAction = SKAction.moveBy(CGVector(dx: 0, dy: -1000), duration: 0.0)
-  //              isRunningAction = true
-                piece?.runAction(moveAction, completion: {
-   //                 self.isRunningAction = false
-                })
-            }
-        }
-*/
     }
     func pieceNode(piece: Piece) -> PieceNode? {
-        switch piece.type {
-        case .Ho:
-            return hoNodeArray[piece.id]
-        case .To:
-            return toNodeArray[piece.id]
-        default:
+        if piece.type == .Masu {
             return nil
         }
+        return pieceNodeArray[piece.type.rawValue][piece.id]
     }
 }
 
@@ -390,6 +445,7 @@ extension GameScene: SKButtonDelegate {
     }
     func matta() {
         shougiContnroller.matta()
+
         updatePiece(0.2)
     }
 }

@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import SpriteKit
 
 struct Point {
     var y: Int, x:Int
@@ -24,25 +25,15 @@ func ==(l: Point, r: Point) -> Bool {
     return l.y == r.y && l.x == r.x
 }
 
+let vectors: [Point] = [
+    Point(y: -1, x: 0),
+    Point(y: 1, x: 0),
+    Point(y: 0, x: -1),
+    Point(y: 0, x: 1)
+]
 
-enum Direction:Int {
-    case Up = 1
-    case Down, Left, Right
-    func toPoint() -> Point {
-        switch self {
-        case .Up:
-            return Point(y: -1, x: 0)
-        case .Down:
-            return Point(y: 1, x: 0)
-        case .Left:
-            return Point(y: 0, x: -1)
-        case .Right:
-            return Point(y: 0, x: 1)
-        }
-    }
-}
 enum PieceType : Int {
-    case Ho = 1, To = 2, Masu = 0
+    case Ho = 0, To = 1, Masu = 2
 }
 
 struct Piece {
@@ -51,16 +42,16 @@ struct Piece {
 }
 
 class BoardData {
-    var bin: [[Piece]]
+    var bin: [Piece]
     var turn : Player
     var score: [Player:Int]
     init() {
-        bin = Array(count: 9, repeatedValue: Array(count: 9, repeatedValue: Piece(type: .Masu, id: 0)))
+        bin = Array(count: 81, repeatedValue: Piece(type: .Masu, id: 0))
         for i in 0...8 {
-            bin[0][i].type = .To
-            bin[8][i].type = .Ho
-            bin[0][i].id = i
-            bin[8][i].id = i
+            bin[i].type = .To
+            bin[72+i].type = .Ho
+            bin[i].id = i
+            bin[72+i].id = i
         }
         turn = .Own
         score = Dictionary(dictionaryLiteral: (.Own, 0), (.Enemy, 0))
@@ -86,9 +77,14 @@ class ShougiModel {
         datas = Array()
         currentData = BoardData()
     }
-    
+    func copy()->ShougiModel {
+        var newShougiModel = ShougiModel()
+        newShougiModel.datas = datas
+        newShougiModel.currentData = currentData.copy()
+        return newShougiModel
+    }
     func piece(p: Point) -> Piece {
-        return currentData.bin[p.y][p.x]
+        return currentData.bin[p.y*9+p.x]
     }
     func dataCount() -> Int {
         return datas.count
@@ -101,16 +97,10 @@ class ShougiModel {
 //        showState()
     }
     func showState() {
-        var i: Int = 0
-        for data in datas {
-            NSLog("\(i++)")
-            for T in data.bin {
-                var str: String = ""
-                for TT in T {
-                    str += "\(TT.type.rawValue)"
-                }
-                NSLog(str)
-            }
+        for T in currentData.bin {
+            var str: String = ""
+            str += "\(T.type.rawValue)"
+            NSLog(str)
         }
     }
     func popState() {
@@ -119,14 +109,16 @@ class ShougiModel {
     }
     // コマを動かし，ポイントを追加
     func move(from: Point, to: Point) -> [Point] {
-        currentData.bin[to.y][to.x] = currentData.bin[from.y][from.x]
-        currentData.bin[from.y][from.x] = Piece(type: .Masu, id: 0)
+        currentData.bin[to.y*9+to.x] = currentData.bin[from.y*9+from.x]
+        currentData.bin[from.y*9+from.x] = Piece(type: .Masu, id: 0)
         let points = hasami(to)
         delete(points)
         currentData.score[currentData.turn] = points.count + currentData.score[currentData.turn]!
         return points
     }
-    
+    func switchPlayer() {
+        currentData.turn = currentData.turn.enemy()
+    }
     func score(player: Player) -> Int {
         return currentData.score[player]!
     }
@@ -139,10 +131,10 @@ class ShougiModel {
 extension ShougiModel : ShougiAlgorithmProtocol {
     func hasami(p: Point) -> [Point] {
         var willDeletePoints : [Point] = Array()
-        for direction: Direction in [.Up, .Down, .Left, .Right] {
+        for vector in vectors {
             var tmpPoints: [Point] = Array()
             var ok = false
-            for var np:Point=p+direction.toPoint();checkPoint(np);np=np+direction.toPoint() {
+            for var np:Point=p+vector;checkPoint(np);np=np+vector {
                 if piece(np).type != .Masu {
                     if piece(np).type != piece(p).type {
                         ok = true
@@ -160,13 +152,14 @@ extension ShougiModel : ShougiAlgorithmProtocol {
                 }
             }
         }
+
         return willDeletePoints
     }
     
     func delete(points: [Point]) {
         for point in points {
-            currentData.bin[point.y][point.x].type = .Masu
-            currentData.bin[point.y][point.x].id = 0
+            currentData.bin[point.y*9+point.x].type = .Masu
+            currentData.bin[point.y*9+point.x].id = 0
         }
     }
 

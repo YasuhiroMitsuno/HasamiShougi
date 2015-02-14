@@ -12,17 +12,11 @@ import Foundation
 class ShougiController {
     private var model: ShougiModel
     private var selectedPoint: Point?
-    var currentPlayer: Player
     var movablePoints: [Point]
 
     init() {
         model = ShougiModel()
         movablePoints = Array()
-        currentPlayer = .Own
-    }
-    
-    func bin() -> [[Piece]] {
-        return model.currentData.bin
     }
     
     func piece(point: Point) -> Piece {
@@ -35,22 +29,24 @@ class ShougiController {
         }
         return nil
     }
-    
+    func currentPlayer() -> Player {
+        return model.currentData.turn
+    }
     func select(point: Point?) -> Bool {
         if var _point = point {
-            if model.piece(_point).type == .Masu {
+            if !model.checkPoint(_point) || model.piece(_point).type == .Masu {
                 return false
             }
             // 選択したピースの所有権が選択者か判定
-            if model.piece(_point).type != currentPlayer.pieceType() {
+            if model.piece(_point).type != currentPlayer().pieceType() {
                 return false
             }
 
             selectedPoint = _point
             movablePoints.removeAll();
 
-            for direction: Direction in [.Up, .Down, .Left, .Right] {
-                for var p:Point=selectedPoint!+direction.toPoint();model.checkPoint(p);p=p+direction.toPoint() {
+            for vector in vectors {
+                for var p:Point=selectedPoint!+vector;model.checkPoint(p);p=p+vector {
                     if model.piece(p).type != .Masu {
                         break
                     }
@@ -86,7 +82,7 @@ class ShougiController {
         // コマの移動
         let points =  model.move(selectedPoint!, to: p)
         // ターン交代
-        currentPlayer = currentPlayer.enemy()        
+        model.switchPlayer()
         
         unselect()
         return true
@@ -97,6 +93,7 @@ class ShougiController {
         if model.dataCount() < 2 {
             return false
         }
+        unselect()
         model.popState()
         model.popState()
         return true
@@ -117,5 +114,70 @@ class ShougiController {
             }
         }
         return nil
+    }
+    
+    func pieceOfPlayer(player: Player) -> [Point] {
+        var arr:[Point] = Array()
+        for i in 0...8 {
+            for j in 0...8 {
+                if piece(Point(y: i, x: j)).type == player.pieceType() {
+                    arr.append(Point(y: i, x: j))
+                }
+            }
+        }
+        return arr
+    }
+}
+
+extension ShougiController {
+    func algorithm() {
+        var tmpModel = model
+        var nModel = model.copy()
+        model = nModel
+        
+        let cPlayer = currentPlayer()
+
+        var maxScore: Int = 0
+        var sPiece: Point?
+        var sPoint: Point?
+        let currentScore = model.score(cPlayer)
+
+        var pieces = pieceOfPlayer(currentPlayer())
+        for piece in pieces {
+            select(piece)
+            for point in movablePoints {
+                movePiece(point)
+                if model.score(cPlayer) >= maxScore {
+                    maxScore = model.score(cPlayer)
+                    sPiece = piece
+                    sPoint = point
+                }                
+                model.popState()
+                select(piece)
+            }
+        }
+
+
+
+        model = tmpModel
+        if maxScore > currentScore {
+            select(sPiece)
+            movePiece(sPoint!)
+        } else {
+            randomAlgorithm()
+        }
+    }
+    
+    
+    
+    func randomAlgorithm() {
+        var pieces = pieceOfPlayer(currentPlayer())
+        var r = random()%pieces.count
+        select(pieceOfPlayer(currentPlayer())[r])
+        var c = movablePoints.count
+        if c != 0 {
+            var p = movablePoints[random()%c]
+            movePiece(p)
+        }
     }
 }
