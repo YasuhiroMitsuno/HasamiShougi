@@ -21,6 +21,10 @@ class ShougiController {
         currentPlayer = .Own
     }
     
+    func bin() -> [[Piece]] {
+        return model.currentData.bin
+    }
+    
     func piece(point: Point) -> Piece {
         return model.piece(point)
     }
@@ -82,17 +86,18 @@ class ShougiController {
         // コマの移動
         let points =  model.move(selectedPoint!, to: p)
         // ターン交代
-        currentPlayer = currentPlayer.enemy()
+        currentPlayer = currentPlayer.enemy()        
         
         unselect()
         return true
     }
-
+    
     // 待った
     func matta() -> Bool {
         if model.dataCount() < 2 {
             return false
         }
+        model.popState()
         model.popState()
         return true
     }
@@ -106,8 +111,8 @@ class ShougiController {
             return .Enemy
         }
         if model.dataCount() > 2 {
-            if abs(model.prevScore(.Own, offset: 2) - model.prevScore(.Enemy, offset: 2)) >= 3 &&
-                abs(model.prevScore(.Own, offset: 1) - model.prevScore(.Enemy, offset: 1)) >= 3 {
+            if abs(model.prevScore(.Own, offset: 1) - model.prevScore(.Enemy, offset: 1)) >= 3 &&
+                abs(model.score(.Own) - model.score(.Enemy)) >= 3 {
                     return model.score(.Own) > model.score(.Enemy) ? .Own : .Enemy
             }
         }

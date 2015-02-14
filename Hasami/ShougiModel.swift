@@ -41,8 +41,8 @@ enum Direction:Int {
         }
     }
 }
-enum PieceType {
-    case Ho, To, Masu
+enum PieceType : Int {
+    case Ho = 1, To = 2, Masu = 0
 }
 
 struct Piece {
@@ -67,6 +67,7 @@ class BoardData {
     }
     func copy()->BoardData {
         var newBoardData = BoardData()
+        newBoardData.bin = bin
         newBoardData.turn = turn
         newBoardData.score = score
         return newBoardData
@@ -79,7 +80,7 @@ protocol ShougiAlgorithmProtocol {
 
 class ShougiModel {
     private var datas: [BoardData]
-    private var currentData: BoardData
+    var currentData: BoardData
 
     init() {
         datas = Array()
@@ -97,6 +98,20 @@ class ShougiModel {
     }
     func pushState() {
         datas.append(currentData.copy())
+//        showState()
+    }
+    func showState() {
+        var i: Int = 0
+        for data in datas {
+            NSLog("\(i++)")
+            for T in data.bin {
+                var str: String = ""
+                for TT in T {
+                    str += "\(TT.type.rawValue)"
+                }
+                NSLog(str)
+            }
+        }
     }
     func popState() {
         currentData =  datas.last!
@@ -108,6 +123,7 @@ class ShougiModel {
         currentData.bin[from.y][from.x] = Piece(type: .Masu, id: 0)
         let points = hasami(to)
         delete(points)
+        currentData.score[currentData.turn] = points.count + currentData.score[currentData.turn]!
         return points
     }
     
