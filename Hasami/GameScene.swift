@@ -273,6 +273,9 @@ extension GameScene:PieceTouchDelegate {
         if let sPiece = shougiContnroller.selectedPiece() {
             if pieceNode(sPiece) == piece {
                 shougiContnroller.unselect()
+            } else if shougiContnroller.select(piece.point) {
+                selectedPieceNode = piece
+                return
             }
         } else {
             if shougiContnroller.select(piece.point) {
@@ -306,7 +309,7 @@ extension GameScene:PieceTouchDelegate {
     func movePiece(piece: PieceNode, duration: NSTimeInterval) -> Bool {
         if shougiContnroller.movePiece(piece.point!) {
             selectedPieceNode?.point = piece.point
-            updatePiece()
+            updatePiece(duration)
 /*
             let moveaction = SKAction.moveTo(piece.position, duration: duration)
             let action = SKAction.sequence([moveaction, SKAction.waitForDuration(0.2)])
@@ -320,13 +323,13 @@ extension GameScene:PieceTouchDelegate {
         }
         return false
     }
-    func updatePiece() {
+    func updatePiece(duration: NSTimeInterval) {
         for T in masuNodeArray {
             for masuNode in T {
                 let piece = shougiContnroller.piece(masuNode!.point!)
                 switch piece.type {
                 case .Ho:
-                    let moveAction = SKAction.moveTo(masuNode!.position, duration: 0.2)
+                    let moveAction = SKAction.moveTo(masuNode!.position, duration: duration)
                     isRunningAction = true
                     hoNodeArray[piece.id]?.point = masuNode?.point
                     hoNodeArray[piece.id]!.runAction(moveAction, completion: {
@@ -335,7 +338,7 @@ extension GameScene:PieceTouchDelegate {
                     })
                     break
                 case .To:
-                    let moveAction = SKAction.moveTo(masuNode!.position, duration: 0.2)
+                    let moveAction = SKAction.moveTo(masuNode!.position, duration: duration)
                     isRunningAction = true
                     toNodeArray[piece.id]?.point = masuNode?.point
                     toNodeArray[piece.id]!.runAction(moveAction, completion: {
@@ -387,6 +390,6 @@ extension GameScene: SKButtonDelegate {
     }
     func matta() {
         shougiContnroller.matta()
-        updatePiece()
+        updatePiece(0.2)
     }
 }
