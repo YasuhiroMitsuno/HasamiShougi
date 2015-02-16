@@ -176,6 +176,8 @@ class GameScene: SKScene {
     var mattaLabel: SKButtonNode
     var actionCount: Int
     var excludedPieces: [Int]
+    let backgroundQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0)
+    let indicator: UIActivityIndicatorView
     
     required init?(coder aDecoder: NSCoder) {
         shougiContnroller = ShougiController()
@@ -189,13 +191,15 @@ class GameScene: SKScene {
         isRunningAction = false
         isThread = false
         actionCount = 0
-        srandomdev()
+        indicator = UIActivityIndicatorView(activityIndicatorStyle: UIActivityIndicatorViewStyle.WhiteLarge)
         super.init(coder: aDecoder)
     }
     override func didMoveToView(view: SKView) {
         boardNode.position = CGPoint(x: CGRectGetMidX(self.frame), y: CGRectGetMidY(self.frame))
         boardNode.zPosition = 0
         self.addChild(boardNode)
+        
+
         
         mattaLabel.text = "matta!";
         mattaLabel.fontSize = 50;
@@ -236,7 +240,10 @@ class GameScene: SKScene {
             pieceNodeArray[1].append(newPiece)
             boardNode.addChild(newPiece)
         }
+        indicator.center = self.view!.center
+        self.view!.addSubview(indicator)
     }
+    
 
     func locationToPoint(point:CGPoint) -> Point {
         return Point(y: 10, x: 10)
@@ -245,8 +252,12 @@ class GameScene: SKScene {
     var isRunningAction: Bool
     var isThread: Bool
     override func update(currentTime: CFTimeInterval) {
-        if isThread {
+        if isThread || isRunningAction {
             return
+        }
+        if let winner = shougiContnroller.winner() {
+            shougiContnroller.reset()
+            updatePiece(0.2)
         }
         for cpiece in boardNode.children {
             cpiece.unhover()
@@ -263,38 +274,41 @@ class GameScene: SKScene {
             }
         }
 
-        if shougiContnroller.currentPlayer() == .Enemy && !isRunningAction {
+        if shougiContnroller.currentPlayer() == .Enemy {
             isThread = true
-            let backgroundQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0)
+            indicator.startAnimating()
             dispatch_async(backgroundQueue, {
                 self.shougiContnroller.algorithm()
                 dispatch_async(dispatch_get_main_queue()) {
                     self.updatePiece(0.2)
                     self.isThread = false
+                    self.indicator.stopAnimating()
                 }
             })
         }
-        
+
 /*
-        if shougiContnroller.currentPlayer == .Own && !isRunningAction {
-            var r = random()%9
-            pieceTouchesBegan(pieceNodeArray[0][r]!)
-            var c = shougiContnroller.movablePoints.count
-            if c != 0 {
-                var p = shougiContnroller.movablePoints[random()%c]
-                movePiece(masuNodeArray[p.y][p.x]!, duration: 0.2)
-            }
-            
+        if shougiContnroller.currentPlayer() == .Own && !isRunningAction {
+            isThread = true
+            indicator.startAnimating()
+            dispatch_async(backgroundQueue, {
+                self.shougiContnroller.algorithm()
+                dispatch_async(dispatch_get_main_queue()) {
+                    self.updatePiece(0.2)
+                    self.isThread = false
+                    self.indicator.stopAnimating()
+                }
+            })
         }
 */
-        if let winner = shougiContnroller.winner() {
-     //       NSLog("\(winner)")
-        }
     }
 }
 
 extension GameScene:PieceTouchDelegate {
     func pieceTouchesBegan(piece: PieceNode) {
+        if isThread || isRunningAction {
+            return
+        }
         if piece.piecetype == .masuh {
             movePiece(piece, duration: 0.2)
             return
@@ -315,6 +329,10 @@ extension GameScene:PieceTouchDelegate {
         shougiContnroller.unselect()
     }
     func pieceTouchesEnded(piece: PieceNode) {
+        if isThread || isRunningAction {
+            return
+        }
+        
         for point in shougiContnroller.movablePoints {
             let masuNode = masuNodeArray[point.y][point.x]!
             
@@ -327,6 +345,10 @@ extension GameScene:PieceTouchDelegate {
         piece.position = piece._position!
     }
     func pieceTouchesMoved(piece: PieceNode, touches: NSSet, withEvent event: UIEvent) {
+        if isThread || isRunningAction {
+            return
+        }
+        
         if !shougiContnroller.select(piece.point) {
             return
         }
@@ -441,6 +463,9 @@ extension GameScene:PieceTouchDelegate {
 
 extension GameScene: SKButtonDelegate {
     func action() {
+        if isThread {
+            return
+        }
         matta()
     }
     func matta() {

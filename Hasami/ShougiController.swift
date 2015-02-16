@@ -16,6 +16,7 @@ class ShougiController {
 
     init() {
         model = ShougiModel()
+        srandomdev()
         movablePoints = Array()
     }
     
@@ -116,6 +117,10 @@ class ShougiController {
         return nil
     }
     
+    func reset() {
+        model = ShougiModel()
+    }
+    
     func pieceOfPlayer(player: Player) -> [Point] {
         var arr:[Point] = Array()
         for i in 0...8 {
@@ -131,46 +136,77 @@ class ShougiController {
 
 extension ShougiController {
     func algorithm() {
+        let start = NSDate()
+        
         var tmpModel = model
         var nModel = model.copy()
         model = nModel
         
         let cPlayer = currentPlayer()
 
-        var maxScore: Int = 0
+        var maxDamage: Double = 0
+        var minDamage: Double = 100
+        var diff: Bool = false
         var sPiece: Point?
         var sPoint: Point?
         let currentScore = model.score(cPlayer)
-
-        var pieces = pieceOfPlayer(currentPlayer())
+        let currentEScore = model.score(cPlayer.enemy())
+        let score = model.score(cPlayer.enemy()) - model.score(cPlayer)
+        var twice: Bool = false
+        var pieces = pieceOfPlayer(cPlayer)
         for piece in pieces {
             select(piece)
             for point in movablePoints {
+                select(piece)
                 movePiece(point)
-                if model.score(cPlayer) >= maxScore {
-                    maxScore = model.score(cPlayer)
+                maxDamage = -100
+                var pieces2 = pieceOfPlayer(cPlayer.enemy())
+                for piece2 in pieces2 {
+                    select(piece2)
+                    var alphacut: Bool = false
+                    for point2 in movablePoints {
+                        select(piece2)
+                        movePiece(point2)
+                        if Double(model.score(cPlayer.enemy())) - Double(model.score(cPlayer)) >= maxDamage {
+                            maxDamage = Double(model.score(cPlayer.enemy())) - Double(model.score(cPlayer))
+                        }
+                        if model.score(cPlayer.enemy()) != currentEScore || model.score(cPlayer) != currentScore {
+                            diff = true
+                        }
+                        model.popState()
+                        if maxDamage >= minDamage {
+                            alphacut = true
+                            break
+                        }
+                    }
+                    if alphacut {
+                        break
+                    }
+                }
+                if maxDamage < minDamage {
                     sPiece = piece
                     sPoint = point
-                }                
+                    minDamage = maxDamage
+                }
                 model.popState()
-                select(piece)
             }
         }
 
 
 
         model = tmpModel
-        if maxScore > currentScore {
+        if diff {
             select(sPiece)
             movePiece(sPoint!)
         } else {
             randomAlgorithm()
         }
+        let elapsed = NSDate().timeIntervalSinceDate(start)
+        println(elapsed)
     }
-    
-    
-    
+
     func randomAlgorithm() {
+        NSLog("random")
         var pieces = pieceOfPlayer(currentPlayer())
         var r = random()%pieces.count
         select(pieceOfPlayer(currentPlayer())[r])
