@@ -33,6 +33,11 @@ class ShougiController {
     func currentPlayer() -> Player {
         return model.currentData.turn
     }
+    
+    func excludedPieces(player: Player) -> [Piece] {
+        return model.currentData.excluded[player]!
+    }
+    
     func select(point: Point?) -> Bool {
         if var _point = point {
             if !model.checkPoint(_point) || model.piece(_point).type == .Masu {
@@ -113,7 +118,7 @@ class ShougiController {
         model = ShougiModel()
     }
     
-    func pieceOfPlayer(player: Player) -> [Point] {
+    func piecesOfPlayer(player: Player) -> [Point] {
         var arr:[Point] = Array()
         for i in 0...8 {
             for j in 0...8 {
@@ -124,9 +129,15 @@ class ShougiController {
         }
         return arr
     }
+    var sPiece: Point?
+    var sPoint: Point?
+    var ok: Bool?
+    var sco: Double?
+    var scoe: Double?
 }
 
 extension ShougiController {
+    
     func algorithm() {
         let start = NSDate()
         
@@ -134,60 +145,14 @@ extension ShougiController {
         var nModel = model.copy()
         model = nModel
         
-        let cPlayer = currentPlayer()
-
-        var maxDamage: Double = 0
-        var minDamage: Double = 100
-        var diff: Bool = false
-        var sPiece: Point?
-        var sPoint: Point?
-        let currentScore = model.score(cPlayer)
-        let currentEScore = model.score(cPlayer.enemy())
-        let score = model.score(cPlayer.enemy()) - model.score(cPlayer)
-        var twice: Bool = false
-        var pieces = pieceOfPlayer(cPlayer)
-        for piece in pieces {
-            select(piece)
-            for point in movablePoints {
-                select(piece)
-                movePiece(point)
-                maxDamage = -100
-                var pieces2 = pieceOfPlayer(cPlayer.enemy())
-                for piece2 in pieces2 {
-                    select(piece2)
-                    var alphacut: Bool = false
-                    for point2 in movablePoints {
-                        select(piece2)
-                        movePiece(point2)
-                        if Double(model.score(cPlayer.enemy())) - Double(model.score(cPlayer)) >= maxDamage {
-                            maxDamage = Double(model.score(cPlayer.enemy())) - Double(model.score(cPlayer))
-                        }
-                        if model.score(cPlayer.enemy()) != currentEScore || model.score(cPlayer) != currentScore {
-                            diff = true
-                        }
-                        model.popState()
-                        if maxDamage >= minDamage {
-                            alphacut = true
-                            break
-                        }
-                    }
-                    if alphacut {
-                        break
-                    }
-                }
-                if maxDamage < minDamage {
-                    sPiece = piece
-                    sPoint = point
-                    minDamage = maxDamage
-                }
-                model.popState()
-            }
-        }
-
-
+        sco = model.score(currentPlayer())
+        scoe = model.score(currentPlayer().enemy())
+        ok = false
+        alphabeta(3, _alpha: -100, _beta: 100, cPlayer: currentPlayer())
 
         model = tmpModel
-        if diff {
+
+        if ok! {
             select(sPiece)
             movePiece(sPoint!)
         } else {
@@ -196,12 +161,61 @@ extension ShougiController {
         let elapsed = NSDate().timeIntervalSinceDate(start)
         println(elapsed)
     }
+    
+    func alphabeta(depth: Int, _alpha: Double, _beta: Double, cPlayer: Player) -> Double {
+        var alpha = _alpha
+        var beta = _beta
+        
+        if depth == 0 {
+            return model.score(cPlayer) - model.score(cPlayer.enemy())
+        }
+        if currentPlayer() == cPlayer {
+            for piece in piecesOfPlayer(currentPlayer()) {
+                select(piece)
+                for point in movablePoints {
+                    model.pushState()
+                    model.move(selectedPoint!, to: point)
+                    model.switchPlayer()
+                    let ab: Double = alphabeta(depth-1, _alpha: alpha, _beta: beta, cPlayer: cPlayer)
+                    if (ab > alpha && depth == 3 ) {
+                        sPiece = piece
+                        sPoint = point
+                    }
+                    alpha = max(alpha, ab)
+                    if sco != model.score(cPlayer) || scoe != model.score(cPlayer.enemy()) {
+                            ok = true
+                        }
+                    
+                    model.popState()
+                    if alpha >= beta {
+                        return beta
+                    }
+                }
+            }
+            return alpha
+        } else {
+            for piece in piecesOfPlayer(currentPlayer()) {
+                select(piece)
+                for point in movablePoints {
+                    model.pushState()
+                    model.move(selectedPoint!, to: point)
+                    model.switchPlayer()
+                    beta = min(beta, alphabeta(depth-1, _alpha: alpha, _beta: beta, cPlayer: cPlayer))
+                    model.popState()
+                    if alpha >= beta {
+                        return alpha
+                    }
+                }
+            }
+            return beta
+        }
+    }
 
     func randomAlgorithm() {
         NSLog("random")
-        var pieces = pieceOfPlayer(currentPlayer())
+        var pieces = piecesOfPlayer(currentPlayer())
         var r = random()%pieces.count
-        select(pieceOfPlayer(currentPlayer())[r])
+        select(piecesOfPlayer(currentPlayer())[r])
         var c = movablePoints.count
         if c != 0 {
             var p = movablePoints[random()%c]

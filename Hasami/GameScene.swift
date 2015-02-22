@@ -255,10 +255,13 @@ class GameScene: SKScene {
         if isThread || isRunningAction {
             return
         }
+
+
         if let winner = shougiContnroller.winner() {
             shougiContnroller.reset()
             updatePiece(0.2)
         }
+
         for cpiece in boardNode.children {
             cpiece.unhover()
         }
@@ -274,7 +277,7 @@ class GameScene: SKScene {
             }
         }
 
-        if shougiContnroller.currentPlayer() == .Enemy {
+        if shougiContnroller.currentPlayer() == .Enemy && !isThread {
             isThread = true
             indicator.startAnimating()
             dispatch_async(backgroundQueue, {
@@ -286,6 +289,7 @@ class GameScene: SKScene {
                 }
             })
         }
+        
 
 /*
         if shougiContnroller.currentPlayer() == .Own && !isRunningAction {
@@ -426,18 +430,6 @@ extension GameScene:PieceTouchDelegate {
                 appendAction()
                 pieceNodeArray[piece.type.rawValue][piece.id]?.point = masuNode?.point
                 let pNode = pieceNodeArray[piece.type.rawValue][piece.id]!
-                if pNode.excluded {
-                    switch pNode.piecetype! {
-                    case .hor:
-                        excludedPieces[0]--
-                        break
-                    case .tor:
-                        excludedPieces[1]--
-                        break
-                    default:
-                        break
-                    }
-                }
                 pNode.excluded = false
                 pieceNodeArray[piece.type.rawValue][piece.id]!.runAction(action, completion: {
                     self.compeleAction()
@@ -445,6 +437,16 @@ extension GameScene:PieceTouchDelegate {
             }
         }
 
+        excludedPieces[0] = 0
+        excludedPieces[1] = 0
+        for piece in shougiContnroller.excludedPieces(.Own) {
+            excludePiece(pieceNodeArray[1][piece.id]!,duration: duration)
+        }
+        
+        for piece in shougiContnroller.excludedPieces(.Enemy) {
+            excludePiece(pieceNodeArray[0][piece.id]!,duration: duration)
+        }
+        /*
         for T in pieceNodeArray {
             for piece in T {
                 if !piece!.excluded && shougiContnroller.piece(piece!.point!).type == PieceType.Masu {
@@ -452,6 +454,7 @@ extension GameScene:PieceTouchDelegate {
                 }
             }
         }
+*/
     }
     func pieceNode(piece: Piece) -> PieceNode? {
         if piece.type == .Masu {

@@ -45,6 +45,7 @@ class BoardData {
     var bin: [Piece]
     var turn : Player
     var score: [Player:Int]
+    var excluded : [Player:[Piece]]
     init() {
         bin = Array(count: 81, repeatedValue: Piece(type: .Masu, id: 0))
         for i in 0...8 {
@@ -55,12 +56,18 @@ class BoardData {
         }
         turn = .Own
         score = Dictionary(dictionaryLiteral: (.Own, 0), (.Enemy, 0))
+        excluded = Dictionary()
+        excluded[.Own] = Array()
+        excluded[.Enemy] = Array()
     }
     func copy()->BoardData {
         var newBoardData = BoardData()
         newBoardData.bin = bin
         newBoardData.turn = turn
         newBoardData.score = score
+        newBoardData.excluded = excluded
+        newBoardData.excluded[.Own] = excluded[.Own]
+        newBoardData.excluded[.Enemy] = excluded[.Enemy]
         return newBoardData
     }
 }
@@ -132,8 +139,8 @@ class ShougiModel {
     func switchPlayer() {
         currentData.turn = currentData.turn.enemy()
     }
-    func score(player: Player) -> Int {
-        return currentData.score[player]!
+    func score(player: Player) -> Double {
+        return Double(currentData.score[player]!)
     }
 
     func prevScore(player: Player, offset: Int) -> Int {
@@ -202,6 +209,7 @@ extension ShougiModel : ShougiAlgorithmProtocol {
     
     func delete(points: [Point]) {
         for point in points {
+            currentData.excluded[currentData.turn]?.append(currentData.bin[point.y*9+point.x])
             currentData.bin[point.y*9+point.x].type = .Masu
             currentData.bin[point.y*9+point.x].id = 0
         }
