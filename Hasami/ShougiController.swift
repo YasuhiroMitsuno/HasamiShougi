@@ -45,15 +45,7 @@ class ShougiController {
 
             selectedPoint = _point
             movablePoints.removeAll();
-
-            for vector in vectors {
-                for var p:Point=selectedPoint!+vector;model.checkPoint(p);p=p+vector {
-                    if model.piece(p).type != .Masu {
-                        break
-                    }
-                    movablePoints.append(p)
-                }
-            }
+            movablePoints = model.movablePoints(selectedPoint!)
             
             return true
         }

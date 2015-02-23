@@ -107,6 +107,19 @@ class ShougiModel {
         currentData =  datas.last!
         datas.removeLast()
     }
+    func movablePoints(point: Point) -> [Point] {
+        var points: [Point] = Array()
+        
+        for vector in vectors {
+            for var p:Point=point+vector;checkPoint(p);p=p+vector {
+                if piece(p).type != .Masu {
+                    break
+                }
+                points.append(p)
+            }
+        }
+        return points;
+    }
     // コマを動かし，ポイントを追加
     func move(from: Point, to: Point) -> [Point] {
         currentData.bin[to.y*9+to.x] = currentData.bin[from.y*9+from.x]
@@ -152,6 +165,37 @@ extension ShougiModel : ShougiAlgorithmProtocol {
                 }
             }
         }
+        
+        // 囲いハサミ
+        var visited: [[Bool]] = Array(count: 9, repeatedValue: Array(count: 9, repeatedValue: false))
+        visited[p.y][p.x] = true
+        for vector1 in vectors {
+            var ok = true
+            var tmpPoints: [Point] = Array()
+            let np = p+vector1
+            tmpPoints.append(np)
+            if !checkPoint(np) || piece(np).type == .Masu || piece(np).type == piece(p).type { continue }
+            visited[np.y][np.x] = true
+            
+            for (var index = 0;index < tmpPoints.count;index++) {
+                if movablePoints(tmpPoints[index]).count > 0 {
+                    ok = false
+                    break;
+                }
+                visited[tmpPoints[index].y][tmpPoints[index].x] = true
+                for vector2 in vectors {
+                    let np2 = tmpPoints[index]+vector2
+                    if checkPoint(np2) && !visited[np2.y][np2.x] && piece(np2).type != .Masu && piece(np2).type != piece(p).type {
+                        tmpPoints.append(np2)
+                        
+                    }
+                }
+            }
+            if ok {
+                willDeletePoints += tmpPoints
+            }
+        }
+
 
         return willDeletePoints
     }
