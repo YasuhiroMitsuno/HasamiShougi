@@ -134,10 +134,22 @@ class ShougiController {
     var ok: Bool?
     var sco: Double?
     var scoe: Double?
+
 }
 
+struct PointPair {
+    var T1: Point
+    var T2: Point
+    init(T1: Point, T2: Point) {
+        self.T1 = T1
+        self.T2 = T2
+    }
+}
+
+let ABdepth: Int = 2
+var willMovePoints: [Double:[PointPair]] = Dictionary()
+
 extension ShougiController {
-    
     func algorithm() {
         let start = NSDate()
         
@@ -148,16 +160,14 @@ extension ShougiController {
         sco = model.score(currentPlayer())
         scoe = model.score(currentPlayer().enemy())
         ok = false
-        alphabeta(3, _alpha: -100, _beta: 100, cPlayer: currentPlayer())
-
+        willMovePoints = Dictionary()
+        let db: Double = alphabeta(ABdepth, _alpha: -100, _beta: 100, cPlayer: currentPlayer())
+        let points:[PointPair]? = willMovePoints[db]
+        NSLog("取り得る手の数: \(points!.count)")
         model = tmpModel
 
-        if ok! {
-            select(sPiece)
-            movePiece(sPoint!)
-        } else {
-            randomAlgorithm()
-        }
+        randomAlgorithm(points!)
+
         let elapsed = NSDate().timeIntervalSinceDate(start)
         println(elapsed)
     }
@@ -174,17 +184,17 @@ extension ShougiController {
                 select(piece)
                 for point in movablePoints {
                     model.pushState()
-                    model.move(selectedPoint!, to: point)
+                    model.move(piece, to: point)
                     model.switchPlayer()
                     let ab: Double = alphabeta(depth-1, _alpha: alpha, _beta: beta, cPlayer: cPlayer)
-                    if (ab > alpha && depth == 3 ) {
-                        sPiece = piece
-                        sPoint = point
-                    }
-                    alpha = max(alpha, ab)
-                    if sco != model.score(cPlayer) || scoe != model.score(cPlayer.enemy()) {
-                            ok = true
+                    if (depth == ABdepth ) {
+                        if willMovePoints[ab] == nil {
+                            willMovePoints[ab] = Array()
                         }
+                        willMovePoints[ab]?.append(PointPair(T1: piece, T2: point))
+                    }
+
+                    alpha = max(alpha, ab)
                     
                     model.popState()
                     if alpha >= beta {
@@ -198,12 +208,17 @@ extension ShougiController {
                 select(piece)
                 for point in movablePoints {
                     model.pushState()
-                    model.move(selectedPoint!, to: point)
+                    model.move(piece, to: point)
                     model.switchPlayer()
-                    beta = min(beta, alphabeta(depth-1, _alpha: alpha, _beta: beta, cPlayer: cPlayer))
+                    let ab: Double = alphabeta(depth-1, _alpha: alpha, _beta: beta, cPlayer: cPlayer)
+                   beta = min(beta, ab)
                     model.popState()
                     if alpha >= beta {
-                        return alpha
+                        if alpha == beta {
+                            return alpha
+                        } else {
+                            return 0
+                        }
                     }
                 }
             }
@@ -211,15 +226,11 @@ extension ShougiController {
         }
     }
 
-    func randomAlgorithm() {
-        NSLog("random")
-        var pieces = piecesOfPlayer(currentPlayer())
-        var r = random()%pieces.count
-        select(piecesOfPlayer(currentPlayer())[r])
-        var c = movablePoints.count
-        if c != 0 {
-            var p = movablePoints[random()%c]
-            movePiece(p)
-        }
+    func randomAlgorithm(pointPairs: [PointPair]) {
+        var r = random()%pointPairs.count
+//        r =  0
+        select(pointPairs[r].T1)
+        var p = pointPairs[r].T2
+        movePiece(p)
     }
 }

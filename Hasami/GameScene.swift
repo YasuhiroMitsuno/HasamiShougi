@@ -290,6 +290,7 @@ class GameScene: SKScene {
             })
         }
         
+        updatePiece(0.0)
 
 /*
         if shougiContnroller.currentPlayer() == .Own && !isRunningAction {
@@ -437,8 +438,8 @@ extension GameScene:PieceTouchDelegate {
             }
         }
 
-        excludedPieces[0] = 0
-        excludedPieces[1] = 0
+        excludedPieces[0] = shougiContnroller.excludedPieces(.Enemy).count - 1
+        excludedPieces[1] = shougiContnroller.excludedPieces(.Own).count - 1
         for piece in shougiContnroller.excludedPieces(.Own) {
             excludePiece(pieceNodeArray[1][piece.id]!,duration: duration)
         }

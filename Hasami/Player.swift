@@ -8,9 +8,9 @@
 
 import Foundation
 
-enum Player {
-    case Own
-    case Enemy
+enum Player: String {
+    case Own = "OWN"
+    case Enemy = "ENE"
     func pieceType() -> PieceType {
         switch self {
         case .Own:

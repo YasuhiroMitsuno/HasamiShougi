@@ -9,11 +9,14 @@
 import Foundation
 import SpriteKit
 
-struct Point {
+struct Point :Hashable {
     var y: Int, x:Int
     init(y: Int, x: Int) {
         self.y = y
         self.x = x
+    }
+    var hashValue: Int {
+        return self.y * 9 + self.x
     }
 }
 
