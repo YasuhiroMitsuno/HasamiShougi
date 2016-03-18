@@ -110,14 +110,14 @@ class PieceNode: SKSpriteNode {
         }
     }
     
-    override func touchesBegan(touches: NSSet, withEvent event: UIEvent) {
+    override func touchesBegan(touches: Set<NSObject>, withEvent event: UIEvent) {
         for touch: AnyObject in touches {
             _position = self.position
             _willMove = false
         }
         delegate?.pieceTouchesBegan(self)
     }
-    override func touchesMoved(touches: NSSet, withEvent event: UIEvent) {
+    override func touchesMoved(touches: Set<NSObject>, withEvent event: UIEvent) {
         if self.piecetype == .masu || self.piecetype == .masuh {
             return
         }
@@ -134,7 +134,7 @@ class PieceNode: SKSpriteNode {
             delegate?.pieceTouchesMoved(self, touches: touches, withEvent: event)
         }
     }
-    override func touchesEnded(touches: NSSet, withEvent event: UIEvent) {
+    override func touchesEnded(touches: Set<NSObject>, withEvent event: UIEvent) {
         for touch: AnyObject in touches {
             delegate?.pieceTouchesEnded(self)
 
@@ -162,7 +162,7 @@ class SKButtonNode: SKLabelNode {
     required init?(coder aDecoder: NSCoder) {
         super.init(coder: aDecoder)
     }
-    override func touchesEnded(touches: NSSet, withEvent event: UIEvent) {
+    override func touchesEnded(touches: Set<NSObject>, withEvent event: UIEvent) {
         delegate?.action()
     }
 }
